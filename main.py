@@ -40,6 +40,7 @@ class TinyBot:
           total_additions += file["additions"]
           total_deletions += file["deletions"]
           lines[url].append((file["filename"], file["additions"], file["deletions"]))
+      lines[url].append(("total", total_additions, total_deletions))
     return lines
 
   def comment(self, pr_lines: dict[str, Lines]):
@@ -52,12 +53,12 @@ class TinyBot:
       post_url = url.replace("pulls", "issues") + "/comments"
       comment = f"Changes made in `{self.project_dir}`:\n"
       comment += "```\n"
-      comment += "-" * 57 + "\n"
-      comment += "files" + " " * 27 + "additions       deletions\n"
-      comment += "-" * 57 + "\n"
+      comment += "-" * 60 + "\n"
+      comment += "files" + " " * 29 + "insertions       deletions\n"
+      comment += "-" * 60 + "\n"
       for fn, additions, deletions in lines:
-        if fn == "total": comment += "-" * 57 + "\n"
-        comment += f"{fn:<35} {additions:>5} {deletions:>15}\n"
+        if fn == "total": comment += "-" * 60 + "\n"
+        comment += f"{fn:<38} {additions:>5} {deletions:>15}\n"
       comment += "```\n"
       response = requests.post(post_url, json={"body": comment}, headers=self.headers, allow_redirects=True)
       assert response.status_code == 201
