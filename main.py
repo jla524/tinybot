@@ -1,11 +1,11 @@
 from typing import TypeAlias, Any
 from collections import defaultdict
 import requests
-from dotenv import dotenv_values
+from dotenv import dotenv_values, find_dotenv
 
 Json: TypeAlias = dict[str, Any]
 Lines: TypeAlias = list[tuple[str, int, int]]  # filename, lines added, lines deleted
-config: Json = dotenv_values(".env")
+config: Json = dotenv_values(find_dotenv())
 
 class TinyBot:
   headers = {"Accept": "application/vnd.github+json", "Authorization": f"Bearer {config['GH_TOKEN']}", "X-GitHub-Api-Version": "2022-11-28"}
