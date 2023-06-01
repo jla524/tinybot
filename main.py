@@ -14,12 +14,13 @@ class TinyBot:
     "X-GitHub-Api-Version": "2022-11-28",
   }
 
-  def __init__(self, owner: str = "geohot", repo: str = "tinygrad", project_dir: str = "tinygrad/"):
-    self.owner, self.repo, self.project_dir = owner, repo, project_dir
+  def __init__(self, owner: str = "geohot", repo: str = "tinygrad", project_dir: str = "tinygrad/", user: str = "jla524"):
+    self.owner, self.repo, self.project_dir, self.user = owner, repo, project_dir, user
     self.base_url = f"https://api.github.com/repos/{owner}/{repo}"
 
   def list_prs(self) -> Json:
-    response = requests.get(f"{self.base_url}/pulls", headers=self.headers, allow_redirects=True)
+    headers = {**self.headers, "per_page": "100"}
+    response = requests.get(f"{self.base_url}/pulls", headers=headers, allow_redirects=True)
     assert response.status_code == 200
     return response.json()
   
@@ -43,29 +44,45 @@ class TinyBot:
       lines[url].append(("total", total_additions, total_deletions))
     return lines
 
-  def comment(self, pr_lines: dict[str, Lines]):
-    """
-    $ curl -s -H "Authorization: token ${ACCESS_TOKEN}" \
-    -X POST -d '{"body": "Your Message to Comment"}' \
-    "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues/${PR_NUMBER}/comments"
-    """
+  def _list_my_comments(self, post_url: str) -> Json:
+    response = requests.get(post_url, headers=self.headers, allow_redirects=True)
+    assert response.status_code == 200
+    my_comments = []
+    for comment in response.json():
+      if comment["user"]["login"] == self.user:
+        my_comments.append(comment)
+    return my_comments
+
+  def create_or_update_comments(self, pr_lines: dict[str, Lines]):
     for url, lines in pr_lines.items():
-      post_url = url.replace("pulls", "issues") + "/comments"
       comment = f"Changes made in `{self.project_dir}`:\n"
       comment += "```\n"
       comment += "-" * 60 + "\n"
       comment += "files" + " " * 29 + "insertions       deletions\n"
       comment += "-" * 60 + "\n"
+      lines_added = 0
       for fn, additions, deletions in lines:
-        if fn == "total": comment += "-" * 60 + "\n"
+        if fn == "total":
+          lines_added = additions - deletions
+          if len(lines) <= 2: continue
+          comment += "-" * 60 + "\n"
         comment += f"{fn:<38} {additions:>5} {deletions:>15}\n"
+      comment += "-" * 60 + "\n"
+      comment += f"lines added in the tinygrad folder: {lines_added}\n"
       comment += "```\n"
-      response = requests.post(post_url, json={"body": comment}, headers=self.headers, allow_redirects=True)
-      assert response.status_code == 201
+      post_url = url.replace("pulls", "issues") + "/comments"
+      my_comments = self._list_my_comments(post_url)
+      if my_comments:
+        if my_comments[-1]["body"] != comment:  # if multiple comments found, use the last one
+          response = requests.patch(my_comments[-1]["url"], json={"body": comment}, headers=self.headers, allow_redirects=True)
+          assert response.status_code == 200
+      else:
+        response = requests.post(post_url, json={"body": comment}, headers=self.headers, allow_redirects=True)
+        assert response.status_code == 201
 
 if __name__ == "__main__":
   tinybot = TinyBot()
   pr_urls = [x["url"] for x in tinybot.list_prs() if x["user"]["login"] == "jla524"]  # testing
   pr_files = tinybot.list_pr_files(pr_urls)
   pr_lines = tinybot.get_lines(pr_files)
-  tinybot.comment(pr_lines)
+  tinybot.create_or_update_comments(pr_lines)
