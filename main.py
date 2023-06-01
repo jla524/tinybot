@@ -46,6 +46,24 @@ class TinyBot:
         lines[url].append(("total", total_additions, total_deletions))
     return lines
 
+  def _write_comment(self, lines: Json) -> str:
+    comment = f"Changes made in `{self.project_dir}`:\n"
+    comment += "```\n"
+    comment += "-" * 60 + "\n"
+    comment += "files" + " " * 29 + "insertions       deletions\n"
+    comment += "-" * 60 + "\n"
+    lines_added = 0
+    for fn, additions, deletions in lines:
+      if fn == "total":
+        lines_added = additions - deletions
+        if len(lines) <= 2: continue
+        comment += "-" * 60 + "\n"
+      comment += f"{fn:<38} {additions:>5} {deletions:>15}\n"
+    comment += "-" * 60 + "\n"
+    comment += f"lines added in the tinygrad folder: {lines_added}\n"
+    comment += "```\n"
+    return comment
+
   def _list_my_comments(self, post_url: str) -> Json:
     response = requests.get(post_url, headers=self.headers, allow_redirects=True)
     assert response.status_code == 200
@@ -57,21 +75,7 @@ class TinyBot:
 
   def create_or_update_comments(self, pr_lines: dict[str, Lines]):
     for url, lines in pr_lines.items():
-      comment = f"Changes made in `{self.project_dir}`:\n"
-      comment += "```\n"
-      comment += "-" * 60 + "\n"
-      comment += "files" + " " * 29 + "insertions       deletions\n"
-      comment += "-" * 60 + "\n"
-      lines_added = 0
-      for fn, additions, deletions in lines:
-        if fn == "total":
-          lines_added = additions - deletions
-          if len(lines) <= 2: continue
-          comment += "-" * 60 + "\n"
-        comment += f"{fn:<38} {additions:>5} {deletions:>15}\n"
-      comment += "-" * 60 + "\n"
-      comment += f"lines added in the tinygrad folder: {lines_added}\n"
-      comment += "```\n"
+      comment = self._write_comment(lines)
       post_url = url.replace("pulls", "issues") + "/comments"
       my_comments = self._list_my_comments(post_url)
       print(post_url, "PATCH" if my_comments else "POST")
