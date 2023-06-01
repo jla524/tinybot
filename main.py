@@ -22,8 +22,9 @@ class TinyBot:
   
   def list_pr_files(self, pr_urls: list[str]) -> dict[str, list[Json]]:
     files = {}
+    headers = {**self.headers, "per_page": "100"}
     for url in pr_urls:
-      response = requests.get(f"{url}/files", headers=self.headers, timeout=5, allow_redirects=True)
+      response = requests.get(f"{url}/files", headers=headers, timeout=5, allow_redirects=True)
       assert response.status_code == 200
       files[url] = response.json()
     return files
@@ -70,16 +71,23 @@ class TinyBot:
         my_comments.append(comment)
     return my_comments
 
+  def _delete_duplicate_comments(self, comments: list[Json]) -> None:
+    for comment in comments:
+      response = requests.delete(comment["url"], headers=self.headers, timeout=5, allow_redirects=True)
+      assert response.status_code == 204
+
   def create_or_update_comments(self, pr_lines: dict[str, Lines]):
     for url, lines in pr_lines.items():
       comment = self._write_comment(lines)
       post_url = url.replace("pulls", "issues") + "/comments"
       my_comments = self._list_my_comments(post_url)
-      print(post_url, "PATCH" if my_comments else "POST")
+      print(post_url, "PATCH" if my_comments else "POST", len(my_comments))
       if my_comments:
         if my_comments[-1]["body"] != comment:  # if multiple comments found, use the most recent one
           response = requests.patch(my_comments[-1]["url"], json={"body": comment}, headers=self.headers, timeout=5, allow_redirects=True)
           assert response.status_code == 200
+        if len(my_comments) > 1:
+          self._delete_duplicate_comments(my_comments[:-1])
       else:
         response = requests.post(post_url, json={"body": comment}, headers=self.headers, timeout=5, allow_redirects=True)
         assert response.status_code == 201
