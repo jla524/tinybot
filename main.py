@@ -1,4 +1,4 @@
-from typing import TypeAlias, Any, Optional
+from typing import TypeAlias, Any
 from collections import defaultdict
 import requests
 from dotenv import dotenv_values
@@ -8,45 +8,42 @@ Lines: TypeAlias = list[tuple[str, int, int]]  # filename, lines added, lines de
 config: Json = dotenv_values(".env")
 
 class TinyBot:
-  headers = {
-    "Accept": "application/vnd.github+json",
-    "Authorization": f"Bearer {config['GH_TOKEN']}",
-    "X-GitHub-Api-Version": "2022-11-28",
-  }
+  headers = {"Accept": "application/vnd.github+json", "Authorization": f"Bearer {config['GH_TOKEN']}", "X-GitHub-Api-Version": "2022-11-28"}
 
   def __init__(self, owner: str = "geohot", repo: str = "tinygrad", project_dir: str = "tinygrad/", user: str = "tinyb0t"):
     self.owner, self.repo, self.project_dir, self.user = owner, repo, project_dir, user
     self.base_url = f"https://api.github.com/repos/{owner}/{repo}"
 
-  def list_prs(self) -> Json:
+  def list_prs(self) -> list[Json]:
     headers = {**self.headers, "per_page": "100"}
-    response = requests.get(f"{self.base_url}/pulls", headers=headers, allow_redirects=True)
+    response = requests.get(f"{self.base_url}/pulls", headers=headers, timeout=5, allow_redirects=True)
     assert response.status_code == 200
     return response.json()
   
-  def list_pr_files(self, pr_urls: list[str]) -> dict[str, Json]:
+  def list_pr_files(self, pr_urls: list[str]) -> dict[str, list[Json]]:
     files = {}
     for url in pr_urls:
-      response = requests.get(f"{url}/files", headers=self.headers, allow_redirects=True)
+      response = requests.get(f"{url}/files", headers=self.headers, timeout=5, allow_redirects=True)
       assert response.status_code == 200
       files[url] = response.json()
     return files
   
-  def get_lines(self, pr_files: list[Json]) -> dict[str, Lines]:
+  def get_lines(self, pr_files: dict[str, list[Json]]) -> defaultdict[str, Lines]:
     lines = defaultdict(list)
     for url, files in pr_files.items():
       n_files, total_additions, total_deletions = 0, 0, 0
       for file in files:
         if file["filename"].startswith(self.project_dir):
-          total_additions += file["additions"]
-          total_deletions += file["deletions"]
-          lines[url].append((file["filename"], file["additions"], file["deletions"]))
+          additions, deletions = int(file["additions"]), int(file["deletions"])
+          total_additions += additions
+          total_deletions += deletions
+          lines[url].append((file["filename"], additions, deletions))
           n_files += 1
       if n_files > 0:
         lines[url].append(("total", total_additions, total_deletions))
     return lines
 
-  def _write_comment(self, lines: Json) -> str:
+  def _write_comment(self, lines: Lines) -> str:
     comment = f"Changes made in `{self.project_dir}`:\n"
     comment += "```\n"
     comment += "-" * 60 + "\n"
@@ -55,7 +52,7 @@ class TinyBot:
     lines_added = 0
     for fn, additions, deletions in lines:
       if fn == "total":
-        lines_added = additions - deletions
+        lines_added = int(additions) - int(deletions)
         if len(lines) <= 2: continue
         comment += "-" * 60 + "\n"
       comment += f"{fn:<38} {additions:>5} {deletions:>15}\n"
@@ -64,8 +61,8 @@ class TinyBot:
     comment += "```\n"
     return comment
 
-  def _list_my_comments(self, post_url: str) -> Json:
-    response = requests.get(post_url, headers=self.headers, allow_redirects=True)
+  def _list_my_comments(self, post_url: str) -> list[Json]:
+    response = requests.get(post_url, headers=self.headers, timeout=5, allow_redirects=True)
     assert response.status_code == 200
     my_comments = []
     for comment in response.json():
@@ -81,10 +78,10 @@ class TinyBot:
       print(post_url, "PATCH" if my_comments else "POST")
       if my_comments:
         if my_comments[-1]["body"] != comment:  # if multiple comments found, use the most recent one
-          response = requests.patch(my_comments[-1]["url"], json={"body": comment}, headers=self.headers, allow_redirects=True)
+          response = requests.patch(my_comments[-1]["url"], json={"body": comment}, headers=self.headers, timeout=5, allow_redirects=True)
           assert response.status_code == 200
       else:
-        response = requests.post(post_url, json={"body": comment}, headers=self.headers, allow_redirects=True)
+        response = requests.post(post_url, json={"body": comment}, headers=self.headers, timeout=5, allow_redirects=True)
         assert response.status_code == 201
 
 if __name__ == "__main__":
