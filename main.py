@@ -14,7 +14,7 @@ class TinyBot:
     "X-GitHub-Api-Version": "2022-11-28",
   }
 
-  def __init__(self, owner: str = "geohot", repo: str = "tinygrad", project_dir: str = "tinygrad/", user: str = "jla524"):
+  def __init__(self, owner: str = "geohot", repo: str = "tinygrad", project_dir: str = "tinygrad/", user: str = "tinyb0t"):
     self.owner, self.repo, self.project_dir, self.user = owner, repo, project_dir, user
     self.base_url = f"https://api.github.com/repos/{owner}/{repo}"
 
@@ -35,13 +35,15 @@ class TinyBot:
   def get_lines(self, pr_files: list[Json]) -> dict[str, Lines]:
     lines = defaultdict(list)
     for url, files in pr_files.items():
-      total_additions, total_deletions = 0, 0
+      n_files, total_additions, total_deletions = 0, 0, 0
       for file in files:
         if file["filename"].startswith(self.project_dir):
           total_additions += file["additions"]
           total_deletions += file["deletions"]
           lines[url].append((file["filename"], file["additions"], file["deletions"]))
-      lines[url].append(("total", total_additions, total_deletions))
+          n_files += 1
+      if n_files > 0:
+        lines[url].append(("total", total_additions, total_deletions))
     return lines
 
   def _list_my_comments(self, post_url: str) -> Json:
@@ -72,8 +74,9 @@ class TinyBot:
       comment += "```\n"
       post_url = url.replace("pulls", "issues") + "/comments"
       my_comments = self._list_my_comments(post_url)
+      print(post_url, "PATCH" if my_comments else "POST")
       if my_comments:
-        if my_comments[-1]["body"] != comment:  # if multiple comments found, use the last one
+        if my_comments[-1]["body"] != comment:  # if multiple comments found, use the most recent one
           response = requests.patch(my_comments[-1]["url"], json={"body": comment}, headers=self.headers, allow_redirects=True)
           assert response.status_code == 200
       else:
@@ -82,7 +85,7 @@ class TinyBot:
 
 if __name__ == "__main__":
   tinybot = TinyBot()
-  pr_urls = [x["url"] for x in tinybot.list_prs() if x["user"]["login"] == "jla524"]  # testing
+  pr_urls = [x["url"] for x in tinybot.list_prs()]
   pr_files = tinybot.list_pr_files(pr_urls)
   pr_lines = tinybot.get_lines(pr_files)
   tinybot.create_or_update_comments(pr_lines)
