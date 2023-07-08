@@ -10,7 +10,7 @@ config: Json = dotenv_values(find_dotenv())
 class TinyBot:
   headers = {"Accept": "application/vnd.github+json", "Authorization": f"Bearer {config['GH_TOKEN']}", "X-GitHub-Api-Version": "2022-11-28"}
 
-  def __init__(self, owner: str = "geohot", repo: str = "tinygrad", project_dir: str = "tinygrad/", user: str = "tinyb0t"):
+  def __init__(self, owner: str = "tinygrad", repo: str = "tinygrad", project_dir: str = "tinygrad/", user: str = "tinyb0t"):
     self.owner, self.repo, self.project_dir, self.user = owner, repo, project_dir, user
     self.base_url = f"https://api.github.com/repos/{owner}/{repo}"
 
