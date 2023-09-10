@@ -1,0 +1,2 @@
+SHELL=/bin/zsh
+*/10 * * * * /usr/local/bin/python3 /Users/jacky/fun/tinybot/main.py > /Users/jacky/.cache/tinybot/log.txt 2>&1
